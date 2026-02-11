@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>404 | Deep Abyss</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <style>
+        :root {
+            --bg: #000000;
+            --glass-white: rgba(255, 255, 255, 0.02);
+            --border: rgba(255, 255, 255, 0.12);
+        }
+        body {
+            margin: 0;
+            background: var(--bg);
+            color: white;
+            font-family: 'Inter', sans-serif;
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .liquid {
+            position: fixed;
+            inset: 0;
+            z-index: -1;
+            filter: blur(120px);
+            opacity: 0.5;
+        }
+        .blob {
+            position: absolute;
+            width: 600px;
+            height: 600px;
+            background: radial-gradient(circle, #222 0%, #000 70%);
+            border-radius: 50%;
+        }
+        .grid {
+            position: fixed;
+            inset: 0;
+            background-image: 
+                linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
+            background-size: 80px 80px;
+            z-index: -1;
+            mask-image: radial-gradient(circle at center, black, transparent 80%);
+        }
+        .glass-card {
+            position: relative;
+            padding: 6rem 4rem;
+            width: 85%;
+            max-width: 650px;
+            background: var(--glass-white);
+            backdrop-filter: blur(60px) saturate(180%);
+            -webkit-backdrop-filter: blur(60px) saturate(180%);
+            border: 1px solid var(--border);
+            border-radius: 56px;
+            text-align: center;
+            box-shadow: 0 100px 150px -50px rgba(0,0,0,1);
+            transform-style: preserve-3d;
+        }
+        .reflection {
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(circle at var(--rx, 50%) var(--ry, 50%), rgba(255,255,255,0.08) 0%, transparent 40%);
+            pointer-events: none;
+            border-radius: 56px;
+        }
+        .bigt {
+            font-size: clamp(8rem, 20vw, 12rem);
+            font-weight: 100;
+            line-height: 0.8;
+            letter-spacing: -8px;
+            background: linear-gradient(180deg, #fff 20%, #333 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 1rem;
+        }
+        .action {
+            background: white;
+            color: black;
+            padding: 18px 56px;
+            border-radius: 100px;
+            font-weight: 800;
+            font-size: 10px;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            transition: all 0.5s cubic-bezier(0.19, 1, 0.22, 1);
+            display: inline-block;
+            margin-top: 3rem;
+            border: 1px solid white;
+        }
+        .action:hover {
+            background: transparent;
+            color: white;
+            transform: translateY(-8px) scale(1.05);
+            box-shadow: 0 20px 40px rgba(255,255,255,0.1);
+        }
+    </style>
+</head>
+<body>
+    <div class="grid"></div>
+    <div class="liquid">
+        <div class="blob" id="b1"></div>
+        <div class="blob" id="b2"></div>
+    </div>
+
+    <div class="glass-card" id="scene">
+        <div class="reflection" id="refl"></div>
+        <h1 class="bigt">404</h1>
+        <p class="text-xs uppercase tracking-[12px] text-gray-500 mb-8">Dimension Collapse</p>
+        <p class="text-gray-400 text-sm font-light max-w-sm mx-auto leading-relaxed opacity-60">
+            The requested path has been terminated. Please return to the origin point to re-establish connection.
+        </p>
+        <a href="/" class="action">Initialize Return</a>
+    </div>
+
+    <script>
+        gsap.to("#b1", {
+            x: "70vw", y: "30vh", duration: 15, repeat: -1, yoyo: true, ease: "sine.inOut"
+        });
+        gsap.to("#b2", {
+            x: "-10vw", y: "60vh", duration: 20, repeat: -1, yoyo: true, ease: "sine.inOut"
+        });
+
+        const scene = document.getElementById('scene');
+        const refl = document.getElementById('refl');
+
+        document.addEventListener('mousemove', (e) => {
+            const x = e.clientX / window.innerWidth;
+            const y = e.clientY / window.innerHeight;
+            
+            const moveX = (x - 0.5) * 40;
+            const moveY = (y - 0.5) * -40;
+
+            refl.style.setProperty('--rx', `${x * 100}%`);
+            refl.style.setProperty('--ry', `${y * 100}%`);
+
+            gsap.to(scene, {
+                duration: 1.5,
+                rotateY: moveX,
+                rotateX: moveY,
+                ease: "power3.out"
+            });
+        });
+    </script>
+</body>
+</html>
