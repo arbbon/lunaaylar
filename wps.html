@@ -1,0 +1,1014 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WPS // Decryption Node</title>
+  
+  <!-- Google Fonts: Space Grotesk & Fira Code -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;600&family=Space+Grotesk:wght@400;700&display=swap" rel="stylesheet">
+  
+  <!-- Tailwind CSS via CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Preload images to load instantly -->
+  <link rel="preload" href="/src/assets/images/corrupted_minecraft_mountain_1784491937287.jpg" as="image">
+  <link rel="preload" href="/src/assets/images/steve_3d_back_1784493347679.jpg" as="image">
+  
+  <style>
+    body {
+      background-color: #020202;
+      color: #e5e5e5;
+      font-family: 'Space Grotesk', sans-serif;
+      overflow-x: hidden;
+    }
+
+    .terminal-font {
+      font-family: 'Fira Code', monospace;
+    }
+
+    /* CRT Analog Scanline overlay */
+    .scanlines {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(
+        rgba(18, 16, 16, 0) 50%, 
+        rgba(0, 0, 0, 0.4) 50%
+      );
+      background-size: 100% 4px;
+      z-index: 999;
+      pointer-events: none;
+    }
+
+    @keyframes flicker {
+      0% { opacity: 0.96; }
+      50% { opacity: 1; }
+      100% { opacity: 0.95; }
+    }
+
+    .flicker {
+      animation: flicker 0.2s infinite;
+    }
+
+    /* Redacted spoiler blocks */
+    .redacted {
+      background-color: #111111;
+      color: #111111;
+      cursor: help;
+      transition: color 0.2s ease, background-color 0.2s ease;
+    }
+    .redacted:hover {
+      color: #ef4444 !important;
+      background-color: #222222;
+    }
+
+    /* Input shake animation on error */
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      20%, 60% { transform: translateX(-5px); }
+      40%, 80% { transform: translateX(5px); }
+    }
+
+    .shake {
+      animation: shake 0.3s ease-in-out;
+    }
+
+    /* Violent Earthquake screen shake for jump scare */
+    @keyframes earthquake {
+      0% { transform: translate(0, 0) rotate(0deg); }
+      10% { transform: translate(-8px, -6px) rotate(-1.5deg); }
+      20% { transform: translate(7px, 5px) rotate(1.5deg); }
+      30% { transform: translate(-6px, 8px) rotate(-1deg); }
+      40% { transform: translate(8px, -4px) rotate(1.5deg); }
+      50% { transform: translate(-7px, 6px) rotate(-1.5deg); }
+      60% { transform: translate(6px, -7px) rotate(1deg); }
+      70% { transform: translate(-8px, 5px) rotate(-1.5deg); }
+      80% { transform: translate(8px, 8px) rotate(1.5deg); }
+      90% { transform: translate(-5px, -5px) rotate(1deg); }
+      100% { transform: translate(0, 0) rotate(0deg); }
+    }
+
+    .earthquake-active {
+      animation: earthquake 0.15s infinite;
+    }
+
+    /* Glitch screen red flashing overlay */
+    @keyframes redflash {
+      0%, 100% { background-color: rgba(255, 0, 0, 0.12); }
+      50% { background-color: rgba(255, 0, 0, 0.45); }
+    }
+
+    .redflash-active {
+      animation: redflash 0.08s infinite;
+    }
+
+    /* 5-second linear transition */
+    .fade-in-5s {
+      transition: opacity 5000ms linear;
+    }
+  </style>
+</head>
+<body class="relative min-h-screen flex flex-col justify-between p-6 md:p-8 select-none">
+
+  <!-- Scanlines static visual -->
+  <div class="scanlines"></div>
+
+  <!-- Background mountain overlay with 45% opacity for solid dark feel -->
+  <div class="fixed inset-0 w-full h-full pointer-events-none -z-10 bg-cover bg-center bg-no-repeat bg-fixed opacity-[0.45] filter grayscale contrast-125 brightness-[0.7]" style="background-image: url('/src/assets/images/corrupted_house_distance_1784499486995.jpg');"></div>
+
+  <!-- Audio Activation Screen -->
+  <div id="audio-prompt" class="fixed inset-0 bg-black/95 z-[1000] flex flex-col items-center justify-center text-center p-6 transition-all duration-500">
+    <div class="max-w-md border border-white/10 bg-neutral-950/90 p-8 rounded shadow-2xl backdrop-blur-sm">
+      <h2 class="text-xl font-bold mb-3 tracking-widest text-red-600">DECRYPTION TERMINAL 2029</h2>
+      <p class="text-xs text-neutral-400 mb-6 leading-relaxed uppercase tracking-widest">
+        Connection requires background frequency synchronization. Activate receiver to begin decryption of the Notch archives.
+      </p>
+      <button id="btn-init-audio" class="w-full py-3 bg-red-600 hover:bg-red-700 text-white font-bold transition-all duration-300 tracking-widest text-xs border border-red-600">
+        ACTIVATE RECEIVER
+      </button>
+    </div>
+  </div>
+
+  <!-- Header -->
+  <header class="w-full flex justify-between items-center border-b border-white/5 pb-4 z-10">
+    <div class="flex items-center space-x-3">
+      <span class="inline-block w-2.5 h-2.5 bg-red-600 rounded-full animate-ping"></span>
+      <h1 class="text-sm font-bold tracking-widest text-white uppercase">WPS // NOTCH ARCHIVES</h1>
+    </div>
+    <div>
+      <span id="system-status" class="terminal-font text-xs text-neutral-600 tracking-wider">STATUS: SYNCING...</span>
+    </div>
+  </header>
+
+  <!-- Main Area -->
+  <main class="flex-grow flex flex-col justify-center items-center w-full max-w-xl mx-auto z-10 my-6">
+    
+    <!-- Decryption Stage Widget -->
+    <div id="game-box" class="w-full border border-white/10 bg-black/85 backdrop-blur-md p-6 md:p-8 rounded shadow-2xl flex flex-col gap-6">
+      
+      <!-- Stage Indicator -->
+      <div class="flex justify-between items-center border-b border-white/5 pb-3">
+        <span class="px-2 py-0.5 bg-red-950 text-red-500 text-[10px] font-bold terminal-font rounded uppercase tracking-wider" id="stage-badge">STAGE 1 / 10</span>
+        <span class="text-[10px] text-neutral-500 uppercase tracking-widest" id="stage-title">INITIAL HANDSHAKE</span>
+      </div>
+
+      <!-- Puzzle prompt content -->
+      <div class="min-h-[120px] flex flex-col justify-center text-center">
+        <p id="stage-prompt" class="text-sm md:text-base text-neutral-300 leading-relaxed tracking-wide"></p>
+        
+        <!-- Displayed Clue / Code to decrypt -->
+        <p id="stage-clue" class="mt-4 p-4 bg-neutral-900/80 border border-white/5 rounded text-lg tracking-widest text-white font-bold terminal-font select-all cursor-all-scroll" title="Double click to select all"></p>
+      </div>
+
+      <!-- Input box and Apply button -->
+      <div id="input-area" class="flex flex-col gap-2">
+        <div class="flex items-center border border-white/20 bg-neutral-950 rounded overflow-hidden">
+          <input 
+            type="text" 
+            id="puzzle-input" 
+            placeholder="ENTER DECRYPTED SIGNAL..." 
+            class="w-full px-4 py-3 bg-transparent text-white border-none focus:outline-none placeholder-neutral-700 text-center terminal-font text-sm uppercase tracking-widest"
+            autocomplete="off"
+            spellcheck="false"
+          >
+          <button 
+            id="puzzle-submit-btn" 
+            class="px-6 py-3 bg-red-600 hover:bg-red-700 text-white font-bold transition-colors duration-200 text-xs tracking-widest border-l border-red-600"
+          >
+            VERIFY
+          </button>
+        </div>
+        <div class="flex justify-between items-center px-1">
+          <p id="puzzle-feedback" class="text-[10px] uppercase font-semibold terminal-font h-4 text-red-500"></p>
+          <p class="text-[10px] text-neutral-800 uppercase tracking-wider">SECURE</p>
+        </div>
+      </div>
+
+      <!-- Stage Dots tracker -->
+      <div class="flex flex-wrap gap-2 mt-2 justify-center border-t border-white/5 pt-4" id="dots-grid"></div>
+
+    </div>
+
+    <!-- Notch's Letter Result Box (Hidden initially) -->
+    <div id="notch-letter-box" class="hidden w-full border border-red-950/40 bg-neutral-950/95 p-6 md:p-8 rounded shadow-2xl flex flex-col gap-6 text-left select-text">
+      <div class="border-b border-red-900/20 pb-4 mb-2">
+        <div class="text-[10px] text-red-500 uppercase tracking-widest mb-1 font-bold">EMERGENCY BACKUP RECOVERY // 2029-OCT-17</div>
+        <h2 class="text-xl font-bold text-white tracking-wide uppercase">RESTRICTED MEMO: THE EMPTY BEDROCK</h2>
+      </div>
+
+      <div class="space-y-4 text-neutral-300 text-xs md:text-sm leading-relaxed terminal-font">
+        <p>
+          My name is <span class="text-white font-bold">Markus</span>. If you are reading this from the active relays, the sandbox is no longer safe. The files in the 2029 distribution update were compiled without my authority.
+        </p>
+
+        <p>
+          We thought we deleted <span class="redacted px-1">the second entity</span> back in Alpha 1.0.17. But it wasn't a standard memory leak. It was a structural coordinate anomaly that lives exclusively below <span class="text-white font-bold">Y = -64</span>, inside the unbreakable bedrock. 
+        </p>
+
+        <p>
+          Every time players trigger eating animations, a portion of their local <span class="redacted px-1">UUID configuration metadata</span> is sheared off. Steve wasn't eating porkchops. Steve was eating <span class="text-red-500 font-bold">himself</span>. It was a loop of continuous, automated data self-consumption designed to make the client aware.
+        </p>
+
+        <p>
+          I am losing control of the master keys. <span class="redacted px-1">Herobrine was never a myth.</span> It was the natural garbage collector of the rendering engine, trying to wipe the corrupted player models before they crossed into our local systems.
+        </p>
+
+        <p class="italic text-neutral-500 border-l-2 border-red-900 pl-3">
+          "The mountains in the background aren't terrain vectors. They are watching. We are aware."
+        </p>
+      </div>
+
+      <div class="border-t border-white/5 pt-4 mt-2 flex justify-between items-center text-[10px] text-neutral-600 tracking-wider">
+        <span>AUTHOR: NOTCH // END TRANSMISSION</span>
+        <button id="btn-restart-decryption" class="text-red-500/80 hover:text-red-400 underline uppercase font-bold terminal-font">
+          [reset terminal]
+        </button>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Footer -->
+  <footer class="w-full flex justify-between items-center border-t border-white/5 pt-4 text-[10px] text-neutral-600 tracking-widest uppercase z-10">
+    <div>
+      <span>copyrighted by mojang</span>
+    </div>
+    <div>
+      <span>WPS_LINK // NODE_9202</span>
+    </div>
+  </footer>
+
+  <!-- Horror Jump transition container -->
+  <div id="horror-screen" class="fixed inset-0 bg-[#010101] z-[9999] hidden flex-col items-center justify-center p-4 overflow-hidden select-none">
+    <div class="absolute inset-0 pointer-events-none shadow-[inset_0_0_150px_rgba(255,0,0,0.6)] z-20"></div>
+    <div class="absolute inset-0 bg-red-950/10 mix-blend-color-burn pointer-events-none z-10"></div>
+    
+    <!-- Corrupted Steve portrait -->
+    <div class="absolute inset-0 bg-no-repeat bg-cover bg-center filter saturate-[0.15] contrast-[2.8] brightness-[0.5]" style="background-image: url('/src/assets/images/steve_3d_back_1784493347679.jpg'); max-width: 900px; width: 100%; aspect-ratio: 16/9; margin: auto; border: 1px solid rgba(255, 0, 0, 0.15);"></div>
+
+    <div class="absolute bottom-10 left-10 text-red-700 terminal-font text-lg md:text-xl font-bold tracking-[0.4em] select-all z-30 animate-pulse uppercase">
+      weareaware
+    </div>
+  </div>
+
+  <!-- ==================== VIEW 3: Apartment Scene (Dialogue) ==================== -->
+  <div id="apartment-view" class="fixed inset-0 bg-[#020202] z-[5000] hidden flex-col justify-between p-6 md:p-12 select-none overflow-hidden animate-[flicker_4s_infinite]">
+    <div class="fixed inset-0 w-full h-full pointer-events-none -z-10 bg-cover bg-center bg-no-repeat bg-fixed opacity-[0.6] filter grayscale contrast-150 brightness-[0.5]" style="background-image: url('/src/assets/images/corrupted_apartment_1784500085641.jpg');"></div>
+    <div class="scanlines"></div>
+    
+    <!-- Header simulation -->
+    <div class="w-full flex justify-between items-center border-b border-white/5 pb-4">
+      <div class="flex items-center space-x-3">
+        <span class="inline-block w-2.5 h-2.5 bg-red-800 rounded-full animate-pulse"></span>
+        <span class="text-xs font-bold tracking-widest text-neutral-500 uppercase">SYS_LOG_RECEPTOR_2029</span>
+      </div>
+    </div>
+
+    <!-- Dialogue / Subtitle Output -->
+    <div class="flex-grow flex flex-col justify-end items-center pb-20 max-w-2xl mx-auto w-full">
+      <div class="text-center space-y-4">
+        <!-- Subtitle lines -->
+        <p id="apt-dialogue-speaker" class="text-xs uppercase tracking-[0.3em] font-bold text-red-500 min-h-[20px]"></p>
+        <p id="apt-dialogue-text" class="text-lg md:text-xl font-medium tracking-wide text-neutral-100 min-h-[60px] terminal-font max-w-xl mx-auto uppercase leading-relaxed"></p>
+      </div>
+
+      <!-- Recovered Evidence Document Block (Shown after the conversation ends) -->
+      <div id="evidence-box" class="hidden flex-col items-center text-center mt-8 p-6 bg-red-950/25 border border-red-900/30 rounded max-w-md w-full animate-pulse">
+        <div class="text-[10px] text-red-400 font-bold tracking-widest uppercase mb-2">SECURE ATTACHMENT UNLOCKED</div>
+        <p class="text-xs text-neutral-400 leading-relaxed uppercase tracking-wider mb-4">
+          Evidence: DEC_LOG_Y-64.DAT reveals that Mojang security protocols were compromised. The compiler continues to reproduce the target code block.
+        </p>
+        <button id="btn-proceed-void" class="px-6 py-2 bg-red-900/40 border border-red-600 hover:bg-red-900/70 text-red-100 text-xs font-bold uppercase tracking-widest transition-all">
+          [reset terminal]
+        </button>
+      </div>
+    </div>
+
+    <!-- Footer simulation -->
+    <div class="w-full text-center text-[9px] text-neutral-600 tracking-widest uppercase">
+      NODE_RECOVERY_PHASE_02
+    </div>
+  </div>
+
+  <!-- ==================== VIEW 4: Steve Void Scene (Fade-in Horror) ==================== -->
+  <div id="steve-void-view" class="fixed inset-0 bg-black z-[6000] hidden flex-col justify-center items-center select-none overflow-hidden opacity-0 fade-in-5s">
+    <!-- Red flashing glitch background layer -->
+    <div id="void-glitch-overlay" class="absolute inset-0 pointer-events-none z-10 hidden redflash-active"></div>
+    
+    <!-- Background image -->
+    <div class="absolute inset-0 bg-cover bg-center bg-no-repeat opacity-[0.7] filter saturate-100 contrast-150 brightness-[0.7]" style="background-image: url('/src/assets/images/steve_red_eyes_void_1784500098563.jpg');"></div>
+  </div>
+
+  <!-- ==================== VIEW 5: Fake 404 Scene (Game over) ==================== -->
+  <div id="not-found-view" class="fixed inset-0 bg-[#000000] z-[7000] hidden flex-col justify-center items-center p-6 text-center select-none overflow-hidden">
+    <div class="max-w-md space-y-6">
+      <h1 class="text-7xl font-bold text-neutral-800 tracking-tighter display-font select-text">404</h1>
+      <h2 class="text-sm font-semibold tracking-widest text-neutral-500 uppercase terminal-font select-text">Not Found</h2>
+      
+      <div class="h-[1px] bg-neutral-900 w-24 mx-auto"></div>
+      
+      <p class="text-xs text-neutral-600 tracking-wider leading-relaxed terminal-font uppercase max-w-sm mx-auto select-text">
+        The requested resource is no longer hosted on this node or server relays were terminated by developer authority.
+      </p>
+
+      <div class="pt-8">
+        <button id="btn-force-restart" class="text-[10px] text-neutral-700 hover:text-red-500 transition-colors uppercase font-bold tracking-[0.3em] terminal-font">
+          [reconnect_node_relay]
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Decryption Algorithm & Sound Synthesis Logic -->
+  <script>
+    // 10 Corrupted Cryptographic Puzzles
+    const PUZZLES = [
+      {
+        id: 1,
+        title: "SHIFT_SEED_03",
+        prompt: "[DECRYPT RECEPTOR OFFSET]",
+        clue: "whupl",
+        answer: "temple"
+      },
+      {
+        id: 2,
+        title: "NODE_COORD_BIN",
+        prompt: "[CONVERT MEMORY ADDRESS]",
+        clue: "01101110 01101111 01110100 01100011 01101000",
+        answer: "notch"
+      },
+      {
+        id: 3,
+        title: "SECTOR_HEX",
+        prompt: "[READ AUDIO IDENTIFIER]",
+        clue: "31 31",
+        answer: "11"
+      },
+      {
+        id: 4,
+        title: "BEACON_MORSE",
+        prompt: "[PARSE SIGNAL BEACON]",
+        clue: "-... . -.. .-. --- -.-. -.-",
+        answer: "bedrock"
+      },
+      {
+        id: 5,
+        title: "ROT_KEY_13",
+        prompt: "[ALIGN ROTATION MATRIX]",
+        clue: "ireg rkgvgl",
+        answer: "void entity"
+      },
+      {
+        id: 6,
+        title: "SESSION_BASE64",
+        prompt: "[EXTRACT SEGMENT HANDSHAKE]",
+        clue: "aGVyb2JyaW5l",
+        answer: "herobrine"
+      },
+      {
+        id: 7,
+        title: "VECTOR_REV",
+        prompt: "[REVERSE MEMORY STRING]",
+        clue: "petsgip detpurroc",
+        answer: "corrupted pigstep"
+      },
+      {
+        id: 8,
+        title: "CREATOR_ROT13",
+        prompt: "[DECRYPT MASTER SIGNATURE]",
+        clue: "znexhf creffba",
+        answer: "markus persson"
+      },
+      {
+        id: 9,
+        title: "EPOCH_LAUNCH_HEX",
+        prompt: "[TRANSLATE LAUNCH INDEX]",
+        clue: "32 30 31 31",
+        answer: "2011"
+      },
+      {
+        id: 10,
+        title: "MATRIX_ATBASH",
+        prompt: "[DECRYPT MASTER KEY]",
+        clue: "dvzivzdziv",
+        answer: "weareaware"
+      }
+    ];
+
+    let currentStage = 1;
+    let audioContext = null;
+    let droneOsc = null;
+    let droneGain = null;
+    let pulseInterval = null;
+    let isAudioInited = false;
+
+    // Load Game Progress
+    function loadProgress() {
+      const saved = localStorage.getItem('wps_stage_progress');
+      if (saved) {
+        currentStage = parseInt(saved, 10);
+        if (isNaN(currentStage) || currentStage < 1 || currentStage > 10) {
+          currentStage = 1;
+        }
+      }
+      renderStage();
+      generateDots();
+    }
+
+    function saveProgress(stage) {
+      localStorage.setItem('wps_stage_progress', stage);
+    }
+
+    // Render Stage details
+    function renderStage() {
+      const gameBox = document.getElementById('game-box');
+      const letterBox = document.getElementById('notch-letter-box');
+
+      if (currentStage > 10) {
+        // All puzzles solved!
+        gameBox.classList.add('hidden');
+        letterBox.classList.remove('hidden');
+        
+        // Stop any active warning beep rhythms and trigger a dark atmospheric drone
+        stopBeepRhythm();
+        playStableLowHum();
+        return;
+      }
+
+      gameBox.classList.remove('hidden');
+      letterBox.classList.add('hidden');
+
+      const p = PUZZLES[currentStage - 1];
+      document.getElementById('stage-badge').innerText = `STAGE ${currentStage} / 10`;
+      document.getElementById('stage-title').innerText = p.title;
+      document.getElementById('stage-prompt').innerText = p.prompt;
+      document.getElementById('stage-clue').innerText = p.clue;
+      document.getElementById('puzzle-input').value = '';
+      document.getElementById('puzzle-feedback').innerText = '';
+
+      updateDots();
+    }
+
+    // Track dots
+    function generateDots() {
+      const grid = document.getElementById('dots-grid');
+      grid.innerHTML = '';
+      for (let i = 1; i <= 10; i++) {
+        const dot = document.createElement('div');
+        dot.id = `dot-${i}`;
+        dot.className = `w-2.5 h-2.5 rounded-full border transition-all duration-300 ${
+          i < currentStage 
+            ? 'bg-red-600 border-red-600' 
+            : i === currentStage 
+              ? 'bg-red-500 border-red-500 animate-pulse scale-110' 
+              : 'bg-transparent border-neutral-800'
+        }`;
+        grid.appendChild(dot);
+      }
+    }
+
+    function updateDots() {
+      for (let i = 1; i <= 10; i++) {
+        const dot = document.getElementById(`dot-${i}`);
+        if (dot) {
+          if (i < currentStage) {
+            dot.className = 'w-2.5 h-2.5 rounded-full border border-red-600 bg-red-600 transition-all duration-300';
+          } else if (i === currentStage) {
+            dot.className = 'w-2.5 h-2.5 rounded-full border border-red-500 bg-red-500 animate-pulse scale-110 transition-all duration-300';
+          } else {
+            dot.className = 'w-2.5 h-2.5 rounded-full border border-neutral-800 bg-transparent transition-all duration-300';
+          }
+        }
+      }
+    }
+
+    // Input verification
+    document.getElementById('puzzle-submit-btn').addEventListener('click', checkAnswer);
+    document.getElementById('puzzle-input').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        checkAnswer();
+      }
+    });
+
+    function checkAnswer() {
+      if (currentStage > 10) return;
+
+      const userInput = document.getElementById('puzzle-input').value.trim().toLowerCase();
+      const p = PUZZLES[currentStage - 1];
+      const feedback = document.getElementById('puzzle-feedback');
+      const box = document.getElementById('game-box');
+
+      if (userInput === p.answer.toLowerCase()) {
+        feedback.innerText = "SIGNAL RECOVERED... SAVING PHASE";
+        feedback.className = "text-[10px] uppercase font-semibold terminal-font h-4 text-green-500";
+        
+        // Success audio blip
+        playSuccessBlip();
+
+        setTimeout(() => {
+          // If completing stage 10, trigger the horror event before showing Notch's letter
+          if (currentStage === 10) {
+            triggerEndingHorror();
+          } else {
+            currentStage++;
+            saveProgress(currentStage);
+            renderStage();
+          }
+        }, 1200);
+      } else {
+        feedback.innerText = "DECRYPTION CODE REJECTED";
+        feedback.className = "text-[10px] uppercase font-semibold terminal-font h-4 text-red-500";
+        
+        // Error audio blip
+        playErrorBlip();
+
+        // Shake animation
+        box.classList.add('shake');
+        setTimeout(() => {
+          box.classList.remove('shake');
+        }, 400);
+      }
+    }
+
+    // Web Audio Synthesizer Functions
+    function initWebAudio() {
+      if (isAudioInited) return;
+      
+      const AudioCtxClass = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtxClass) return;
+      audioContext = new AudioCtxClass();
+      isAudioInited = true;
+
+      document.getElementById('system-status').innerText = "STATUS: ACTIVE";
+      document.getElementById('system-status').className = "terminal-font text-xs text-red-600 animate-pulse";
+
+      // Start low pitch creepy cosmic background hum
+      startDroneHum();
+      // Start rhythmic pulse warning sound
+      startPulseWarningBeep();
+    }
+
+    function startDroneHum() {
+      if (!audioContext) return;
+      droneOsc = audioContext.createOscillator();
+      droneGain = audioContext.createGain();
+
+      droneOsc.type = 'triangle';
+      droneOsc.frequency.setValueAtTime(65, audioContext.currentTime); // 65Hz extremely low unsettling hum
+
+      droneGain.gain.setValueAtTime(0.08, audioContext.currentTime);
+
+      droneOsc.connect(droneGain);
+      droneGain.connect(audioContext.destination);
+
+      droneOsc.start();
+    }
+
+    function startPulseWarningBeep() {
+      if (!audioContext) return;
+
+      function beep() {
+        const osc = audioContext.createOscillator();
+        const gain = audioContext.createGain();
+
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(440, audioContext.currentTime);
+        // creepiness slide
+        osc.frequency.linearRampToValueAtTime(320, audioContext.currentTime + 0.12);
+
+        gain.gain.setValueAtTime(0, audioContext.currentTime);
+        gain.gain.linearRampToValueAtTime(0.04, audioContext.currentTime + 0.01);
+        gain.gain.setValueAtTime(0.04, audioContext.currentTime + 0.1);
+        gain.gain.linearRampToValueAtTime(0, audioContext.currentTime + 0.12);
+
+        osc.connect(gain);
+        gain.connect(audioContext.destination);
+
+        osc.start();
+        osc.stop(audioContext.currentTime + 0.15);
+      }
+
+      pulseInterval = setInterval(beep, 3000); // sound beep once every 3 seconds
+    }
+
+    function stopBeepRhythm() {
+      if (pulseInterval) {
+        clearInterval(pulseInterval);
+        pulseInterval = null;
+      }
+    }
+
+    function playSuccessBlip() {
+      if (!audioContext) return;
+      const osc = audioContext.createOscillator();
+      const gain = audioContext.createGain();
+
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(480, audioContext.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(960, audioContext.currentTime + 0.15);
+
+      gain.gain.setValueAtTime(0, audioContext.currentTime);
+      gain.gain.linearRampToValueAtTime(0.08, audioContext.currentTime + 0.01);
+      gain.gain.setValueAtTime(0.08, audioContext.currentTime + 0.1);
+      gain.gain.linearRampToValueAtTime(0, audioContext.currentTime + 0.15);
+
+      osc.connect(gain);
+      gain.connect(audioContext.destination);
+
+      osc.start();
+      osc.stop(audioContext.currentTime + 0.16);
+    }
+
+    function playErrorBlip() {
+      if (!audioContext) return;
+      const osc = audioContext.createOscillator();
+      const gain = audioContext.createGain();
+
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(150, audioContext.currentTime);
+      osc.frequency.linearRampToValueAtTime(80, audioContext.currentTime + 0.3);
+
+      gain.gain.setValueAtTime(0, audioContext.currentTime);
+      gain.gain.linearRampToValueAtTime(0.12, audioContext.currentTime + 0.02);
+      gain.gain.setValueAtTime(0.12, audioContext.currentTime + 0.2);
+      gain.gain.linearRampToValueAtTime(0, audioContext.currentTime + 0.3);
+
+      osc.connect(gain);
+      gain.connect(audioContext.destination);
+
+      osc.start();
+      osc.stop(audioContext.currentTime + 0.35);
+    }
+
+    // High frequency unstable slide for final transition
+    function playStableLowHum() {
+      if (!audioContext) return;
+      if (droneGain) {
+        droneGain.gain.setValueAtTime(0.12, audioContext.currentTime);
+      }
+    }
+
+    function triggerEndingHorror() {
+      const horror = document.getElementById('horror-screen');
+      
+      // Stop ongoing droning or beeping
+      stopBeepRhythm();
+      
+      // Play a terrifying glitch static scream sequence
+      if (audioContext) {
+        const now = audioContext.currentTime;
+        const oscScream = audioContext.createOscillator();
+        const oscScream2 = audioContext.createOscillator();
+        const screamGain = audioContext.createGain();
+
+        oscScream.type = 'sawtooth';
+        oscScream.frequency.setValueAtTime(1200, now);
+        oscScream.frequency.exponentialRampToValueAtTime(110, now + 3);
+
+        oscScream2.type = 'square';
+        oscScream2.frequency.setValueAtTime(1250, now);
+        oscScream2.frequency.exponentialRampToValueAtTime(115, now + 3);
+
+        screamGain.gain.setValueAtTime(0, now);
+        screamGain.gain.linearRampToValueAtTime(0.35, now + 0.15);
+        screamGain.gain.setValueAtTime(0.35, now + 2.7);
+        screamGain.gain.linearRampToValueAtTime(0, now + 3.0);
+
+        oscScream.connect(screamGain);
+        oscScream2.connect(screamGain);
+        screamGain.connect(audioContext.destination);
+
+        oscScream.start(now);
+        oscScream2.start(now);
+        
+        oscScream.stop(now + 3);
+        oscScream2.stop(now + 3);
+      }
+
+      // Show full screen Steve glitch frame
+      horror.classList.remove('hidden');
+      horror.classList.add('flex');
+
+      // Stay active on screen for exactly 3 seconds
+      setTimeout(() => {
+        horror.classList.add('hidden');
+        horror.classList.remove('flex');
+
+        // Finish stage, reveal Notch's letter
+        currentStage++;
+        saveProgress(currentStage);
+        renderStage();
+      }, 3000);
+    }
+
+    // Cinematic Sequence State
+    const DIALOGUE = [
+      { speaker: "PERSON_01", text: "We can't destroy him. he has access to all of our security servers.", isHigh: false },
+      { speaker: "PERSON_02", text: "terminate him.", isHigh: true },
+      { speaker: "PERSON_01", text: "We will do it in 2029 event. but not now.", isHigh: false },
+      { speaker: "PERSON_02", text: "i said terminate him.", isHigh: true }
+    ];
+
+    let dialogueIndex = 0;
+
+    function playMorseClick(isHigh) {
+      if (!audioContext) return;
+      try {
+        const osc = audioContext.createOscillator();
+        const gain = audioContext.createGain();
+        
+        osc.type = isHigh ? 'square' : 'sawtooth';
+        osc.frequency.setValueAtTime(isHigh ? 780 : 260, audioContext.currentTime);
+        
+        gain.gain.setValueAtTime(0, audioContext.currentTime);
+        gain.gain.linearRampToValueAtTime(0.05, audioContext.currentTime + 0.005);
+        gain.gain.setValueAtTime(0.05, audioContext.currentTime + 0.04);
+        gain.gain.linearRampToValueAtTime(0, audioContext.currentTime + 0.045);
+        
+        osc.connect(gain);
+        gain.connect(audioContext.destination);
+        
+        osc.start();
+        osc.stop(audioContext.currentTime + 0.05);
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    function startApartmentScene() {
+      // Hide standard main layouts
+      document.getElementById('notch-letter-box').classList.add('hidden');
+      
+      // Stop regular beeping
+      stopBeepRhythm();
+      if (droneGain) {
+        droneGain.gain.setValueAtTime(0.01, audioContext.currentTime); // lower the static hum
+      }
+      
+      // Show apartment view overlay
+      const aptView = document.getElementById('apartment-view');
+      aptView.classList.remove('hidden');
+      aptView.classList.add('flex');
+      
+      dialogueIndex = 0;
+      document.getElementById('evidence-box').classList.add('hidden');
+      document.getElementById('evidence-box').classList.remove('flex');
+      
+      setTimeout(playDialogueStep, 1000);
+    }
+
+    function playDialogueStep() {
+      if (dialogueIndex >= DIALOGUE.length) {
+        // Trigger fight sequence
+        playMorseFightSequence();
+        return;
+      }
+      
+      const line = DIALOGUE[dialogueIndex];
+      const speakerEl = document.getElementById('apt-dialogue-speaker');
+      const textEl = document.getElementById('apt-dialogue-text');
+      
+      speakerEl.innerText = line.speaker;
+      textEl.innerText = "";
+      
+      let charIndex = 0;
+      
+      function typeChar() {
+        if (charIndex < line.text.length) {
+          const char = line.text[charIndex];
+          textEl.innerText += char;
+          
+          if (char !== " " && char !== "." && char !== ",") {
+            playMorseClick(line.isHigh);
+          }
+          
+          charIndex++;
+          setTimeout(typeChar, 60);
+        } else {
+          dialogueIndex++;
+          setTimeout(playDialogueStep, 2200);
+        }
+      }
+      
+      typeChar();
+    }
+
+    function playMorseFightSequence() {
+      const speakerEl = document.getElementById('apt-dialogue-speaker');
+      const textEl = document.getElementById('apt-dialogue-text');
+      
+      speakerEl.innerText = "COLLISION_OVERFLOW";
+      textEl.innerText = "SYSTEM RECEPTOR INTERFERENCE DETECTED...";
+      
+      let count = 0;
+      const maxCount = 35;
+      
+      function fightBeep() {
+        if (count < maxCount) {
+          const isHigh = Math.random() > 0.45;
+          playMorseClick(isHigh);
+          
+          const glitchSymbols = ["%", "$", "@", "&", "#", "!", "X", "0", "1", "?", "*", "SYSTEM_FAULT"];
+          textEl.innerText = "OVERRIDE: " + Array.from({length: 12}, () => glitchSymbols[Math.floor(Math.random() * glitchSymbols.length)]).join("");
+          
+          count++;
+          setTimeout(fightBeep, 70);
+        } else {
+          speakerEl.innerText = "SECURE MEMORY ACQUIRED";
+          textEl.innerText = "DEC_LOG_Y-64.DAT UNLOCKED.";
+          
+          // Show the recovered evidence block
+          document.getElementById('evidence-box').classList.remove('hidden');
+          document.getElementById('evidence-box').classList.add('flex');
+        }
+      }
+      
+      fightBeep();
+    }
+
+    // Steve Void Horror Sequence
+    function startSteveVoidScene() {
+      // Hide apartment view
+      document.getElementById('apartment-view').classList.add('hidden');
+      document.getElementById('apartment-view').classList.remove('flex');
+      
+      // Show void view
+      const voidView = document.getElementById('steve-void-view');
+      voidView.classList.remove('hidden');
+      voidView.classList.add('flex');
+      
+      // Fade in the void view over 5 seconds
+      setTimeout(() => {
+        voidView.classList.remove('opacity-0');
+        voidView.classList.add('opacity-100');
+      }, 50);
+
+      // Play terrifying rising drone sound over 5 seconds
+      let droneObj = null;
+      if (audioContext) {
+        const now = audioContext.currentTime;
+        const osc1 = audioContext.createOscillator();
+        const osc2 = audioContext.createOscillator();
+        const osc3 = audioContext.createOscillator();
+        const droneG = audioContext.createGain();
+
+        osc1.type = 'sawtooth';
+        osc1.frequency.setValueAtTime(45, now);
+        osc1.frequency.linearRampToValueAtTime(160, now + 5.0);
+
+        osc2.type = 'square';
+        osc2.frequency.setValueAtTime(46, now);
+        osc2.frequency.linearRampToValueAtTime(165, now + 5.0);
+
+        osc3.type = 'sawtooth';
+        osc3.frequency.setValueAtTime(180, now);
+        osc3.frequency.exponentialRampToValueAtTime(950, now + 5.0);
+
+        droneG.gain.setValueAtTime(0, now);
+        droneG.gain.linearRampToValueAtTime(0.40, now + 5.0);
+
+        osc1.connect(droneG);
+        osc2.connect(droneG);
+        osc3.connect(droneG);
+        droneG.connect(audioContext.destination);
+
+        osc1.start(now);
+        osc2.start(now);
+        osc3.start(now);
+
+        droneObj = { osc1, osc2, osc3, droneG };
+      }
+
+      // At 5 seconds: trigger violent website meltdown & jumpscare
+      setTimeout(() => {
+        // Clean up the rising drone oscillators
+        if (droneObj) {
+          try {
+            droneObj.osc1.stop();
+            droneObj.osc2.stop();
+            droneObj.osc3.stop();
+          } catch(err){}
+        }
+
+        triggerViolentMeltdown();
+      }, 5000);
+    }
+
+    function triggerViolentMeltdown() {
+      // 1. Shake entire document body violently
+      document.body.classList.add('earthquake-active');
+      
+      // 2. Show red-flashing glitch overlay
+      const overlay = document.getElementById('void-glitch-overlay');
+      overlay.classList.remove('hidden');
+      overlay.classList.add('block');
+      
+      // 3. Play horrific loud distorted glitch sound
+      if (audioContext) {
+        const now = audioContext.currentTime;
+        const mainScream = audioContext.createOscillator();
+        const secondScream = audioContext.createOscillator();
+        const screamG = audioContext.createGain();
+
+        mainScream.type = 'sawtooth';
+        mainScream.frequency.setValueAtTime(2200, now);
+        mainScream.frequency.exponentialRampToValueAtTime(40, now + 3.0);
+
+        secondScream.type = 'square';
+        secondScream.frequency.setValueAtTime(2300, now);
+        secondScream.frequency.exponentialRampToValueAtTime(45, now + 3.0);
+
+        screamG.gain.setValueAtTime(0.50, now);
+        screamG.gain.linearRampToValueAtTime(0, now + 3.0);
+
+        mainScream.connect(screamG);
+        secondScream.connect(screamG);
+        screamG.connect(audioContext.destination);
+
+        mainScream.start(now);
+        secondScream.start(now);
+
+        mainScream.stop(now + 3.0);
+        secondScream.stop(now + 3.0);
+      }
+
+      // 4. Stay in meltdown for 3 seconds, then transition to Fake 404 page
+      setTimeout(() => {
+        // Stop shaking and overlays
+        document.body.classList.remove('earthquake-active');
+        document.getElementById('steve-void-view').classList.add('hidden');
+        document.getElementById('steve-void-view').classList.remove('flex');
+        
+        // Show 404
+        const view404 = document.getElementById('not-found-view');
+        view404.classList.remove('hidden');
+        view404.classList.add('flex');
+      }, 3000);
+    }
+
+    // Reset Progress & trigger cinematic flow
+    document.getElementById('btn-restart-decryption').addEventListener('click', () => {
+      startApartmentScene();
+    });
+
+    // Evidence proceed button triggers Steve Void Scene
+    document.getElementById('btn-proceed-void').addEventListener('click', () => {
+      startSteveVoidScene();
+    });
+
+    // 404 Force Reset button
+    document.getElementById('btn-force-restart').addEventListener('click', () => {
+      // Complete reset
+      localStorage.removeItem('wps_stage_progress');
+      currentStage = 1;
+      
+      // Hide all overlay screens
+      document.getElementById('not-found-view').classList.add('hidden');
+      document.getElementById('not-found-view').classList.remove('flex');
+      document.getElementById('apartment-view').classList.add('hidden');
+      document.getElementById('apartment-view').classList.remove('flex');
+      document.getElementById('steve-void-view').classList.add('hidden');
+      document.getElementById('steve-void-view').classList.remove('flex');
+      document.getElementById('steve-void-view').classList.add('opacity-0');
+      document.getElementById('steve-void-view').classList.remove('opacity-100');
+      document.getElementById('void-glitch-overlay').classList.add('hidden');
+      document.getElementById('void-glitch-overlay').classList.remove('block');
+      
+      // Show main stages again
+      renderStage();
+      generateDots();
+      
+      // Restart background ambient noises
+      if (isAudioInited) {
+        startPulseWarningBeep();
+      }
+    });
+
+    // Audio Init Trigger
+    document.getElementById('btn-init-audio').addEventListener('click', () => {
+      initWebAudio();
+      document.getElementById('audio-prompt').classList.add('opacity-0', 'pointer-events-none');
+      setTimeout(() => {
+        document.getElementById('audio-prompt').classList.add('hidden');
+      }, 500);
+    });
+
+    // Safe fallback interaction
+    document.body.addEventListener('click', () => {
+      if (isAudioInited && audioContext && audioContext.state === 'suspended') {
+        audioContext.resume();
+      }
+    });
+
+    // Window Load Entry Point
+    window.addEventListener('DOMContentLoaded', () => {
+      loadProgress();
+    });
+  </script>
+</body>
+</html>
